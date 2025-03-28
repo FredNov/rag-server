@@ -56,14 +56,19 @@ def get_env_var(key: str, default: Optional[str] = None) -> str:
         raise ValueError(f"Required environment variable {key} not found in .env file or system environment")
     return value
 
+# Script configuration variables from environment
+SUPABASE_URL = get_env_var("SUPABASE_URL")
+SUPABASE_ANON_KEY = get_env_var("SUPABASE_ANON_KEY")
+OPENAI_API_KEY = get_env_var("OPENAI_API_KEY")
+OPENAI_MODEL = get_env_var("OPENAI_MODEL", "text-embedding-ada-002")
+DOCUMENTS_TABLE = get_env_var("DOCUMENTS_TABLE")
+DEFAULT_SEARCH_LIMIT = int(get_env_var("DEFAULT_SEARCH_LIMIT", "5"))
+
 # Initialize Supabase client
-supabase: Client = create_client(
-    get_env_var("SUPABASE_URL"),
-    get_env_var("SUPABASE_ANON_KEY")
-)
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
 
 # Initialize OpenAI client
-openai_client = OpenAI(api_key=get_env_var("OPENAI_API_KEY"))
+openai_client = OpenAI(api_key=OPENAI_API_KEY)
 
 # Create MCP server
 mcp = FastMCP("RAG Server")
@@ -93,7 +98,7 @@ class DocumentMetadata(BaseModel):
     blobType: Optional[str] = None
 
 @mcp.tool()
-async def search_documents(query: str, limit: int = int(os.getenv("DEFAULT_SEARCH_LIMIT", "5"))) -> List[Document]:
+async def search_documents(query: str, limit: int = DEFAULT_SEARCH_LIMIT) -> List[Document]:
     """
     Search for documents using semantic similarity with the given query.
     
@@ -108,7 +113,7 @@ async def search_documents(query: str, limit: int = int(os.getenv("DEFAULT_SEARC
     
     # Generate embedding for the query
     query_embedding = openai_client.embeddings.create(
-        model=os.getenv("OPENAI_MODEL"),
+        model=OPENAI_MODEL,
         input=query
     ).data[0].embedding
     
@@ -173,7 +178,7 @@ async def add_document(content: str, metadata: Optional[DocumentMetadata] = None
     """
     # Generate embedding for the document
     embedding = openai_client.embeddings.create(
-        model=os.getenv("OPENAI_MODEL"),
+        model=OPENAI_MODEL,
         input=content
     ).data[0].embedding
     
@@ -181,7 +186,7 @@ async def add_document(content: str, metadata: Optional[DocumentMetadata] = None
     metadata_dict = metadata.dict() if metadata else None
     
     # Insert document into Supabase
-    response = supabase.table(os.getenv("DOCUMENTS_TABLE")).insert({
+    response = supabase.table(DOCUMENTS_TABLE).insert({
         'content': content,
         'embedding': embedding,
         'metadata': metadata_dict
@@ -202,7 +207,7 @@ async def delete_document(document_id: Union[str, int]) -> bool:
     """
     # Convert document_id to string if it's an integer
     document_id_str = str(document_id)
-    response = supabase.table(os.getenv("DOCUMENTS_TABLE")).delete().eq('id', document_id_str).execute()
+    response = supabase.table(DOCUMENTS_TABLE).delete().eq('id', document_id_str).execute()
     return len(response.data) > 0
 
 if __name__ == "__main__":
