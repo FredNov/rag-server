@@ -1,7 +1,6 @@
-mcp @ git+https://github.com/modelcontextprotocol/python-sdk.git
+python-dotenv>=1.0.0
+fastmcp>=0.1.0
 supabase>=2.0.0
 openai>=1.0.0
-python-dotenv>=1.0.0
-fastapi>=0.100.0
-uvicorn>=0.23.0
-pydantic>=2.0.0 
+pydantic>=2.0.0
+uvicorn>=0.24.0 

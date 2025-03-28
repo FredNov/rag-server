@@ -6,22 +6,37 @@ from supabase import create_client, Client
 from openai import OpenAI
 from pydantic import BaseModel
 import logging
+from pathlib import Path
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Load environment variables
-load_dotenv()
+# Get the directory where the script is located
+SCRIPT_DIR = Path(__file__).resolve().parent
+
+# Try to load .env file from script directory if it exists
+env_path = SCRIPT_DIR / '.env'
+if env_path.exists():
+    load_dotenv(env_path)
+else:
+    logger.info("No .env file found in script directory, using system environment variables")
+
+# Get environment variables with fallback to system environment
+def get_env_var(key: str, default: Optional[str] = None) -> str:
+    value = os.getenv(key, default)
+    if value is None:
+        raise ValueError(f"Required environment variable {key} not found in .env file or system environment")
+    return value
 
 # Initialize Supabase client
 supabase: Client = create_client(
-    os.getenv("SUPABASE_URL"),
-    os.getenv("SUPABASE_ANON_KEY")
+    get_env_var("SUPABASE_URL"),
+    get_env_var("SUPABASE_ANON_KEY")
 )
 
 # Initialize OpenAI client
-openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+openai_client = OpenAI(api_key=get_env_var("OPENAI_API_KEY"))
 
 # Create MCP server
 mcp = FastMCP("RAG Server")
