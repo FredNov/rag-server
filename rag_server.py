@@ -12,15 +12,42 @@ from pathlib import Path
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Get the directory where the script is located
-SCRIPT_DIR = Path(__file__).resolve().parent
+def find_env_file() -> Optional[Path]:
+    """
+    Find the .env file by checking multiple locations:
+    1. Current working directory
+    2. Script directory
+    3. Parent directory of script
+    """
+    # Get the script's directory
+    script_dir = Path(__file__).resolve().parent
+    current_dir = Path.cwd()
+    
+    # List of possible .env file locations
+    possible_locations = [
+        current_dir / '.env',
+        script_dir / '.env',
+        script_dir.parent / '.env'
+    ]
+    
+    # Log all locations we're checking
+    logger.info(f"Checking for .env file in locations: {[str(p) for p in possible_locations]}")
+    
+    # Find the first existing .env file
+    for env_path in possible_locations:
+        if env_path.exists():
+            logger.info(f"Found .env file at: {env_path}")
+            return env_path
+    
+    logger.info("No .env file found in any of the checked locations")
+    return None
 
-# Try to load .env file from script directory if it exists
-env_path = SCRIPT_DIR / '.env'
-if env_path.exists():
+# Try to load .env file if it exists
+env_path = find_env_file()
+if env_path:
     load_dotenv(env_path)
 else:
-    logger.info("No .env file found in script directory, using system environment variables")
+    logger.info("Using system environment variables")
 
 # Get environment variables with fallback to system environment
 def get_env_var(key: str, default: Optional[str] = None) -> str:
