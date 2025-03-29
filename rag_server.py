@@ -7,6 +7,7 @@ from openai import OpenAI
 from pydantic import BaseModel
 import logging
 from pathlib import Path
+import httpx
 
 # Configure logging with both file and console handlers
 logging.basicConfig(
@@ -93,7 +94,15 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
 
 # Initialize OpenAI client
 logger.info("Initializing OpenAI client...")
-openai_client = OpenAI(api_key=OPENAI_API_KEY)
+http_client = httpx.Client(
+    base_url="https://api.openai.com/v1",
+    headers={"Authorization": f"Bearer {OPENAI_API_KEY}"}
+)
+
+openai_client = OpenAI(
+    api_key=OPENAI_API_KEY,
+    http_client=http_client
+)
 
 # Create MCP server
 logger.info("Creating MCP server...")
@@ -123,10 +132,7 @@ class DocumentMetadata(BaseModel):
     file_id: Optional[str] = None
     blobType: Optional[str] = None
 
-@mcp.tool(
-    name="search_documents",
-    description="Search in user knowledge database using semantic similarity with the given query. Returns a list of relevant content sorted by similarity."
-)
+@mcp.tool("search_documents")
 async def search_documents(query: str, limit: int = DEFAULT_SEARCH_LIMIT) -> List[Document]:
     """
     Search for documents using semantic similarity with the given query.
@@ -187,10 +193,7 @@ async def search_documents(query: str, limit: int = DEFAULT_SEARCH_LIMIT) -> Lis
         logger.error(f"Error during document search: {str(e)}")
         raise
 
-@mcp.tool(
-    name="add_document",
-    description="Add a new user knowledge to the database with its embedding. The content will be processed to generate embeddings and stored in Supabase."
-)
+@mcp.tool("add_document")
 async def add_document(content: str, metadata: Optional[DocumentMetadata] = None) -> Document:
     """
     Add a new document to the database with its embedding.
@@ -234,10 +237,7 @@ async def add_document(content: str, metadata: Optional[DocumentMetadata] = None
         logger.error(f"Error adding document: {str(e)}")
         raise
 
-@mcp.tool(
-    name="delete_document",
-    description="Delete an user knowledge from the database by its ID. Returns True if deletion was successful."
-)
+@mcp.tool("delete_document")
 async def delete_document(document_id: Union[str, int]) -> bool:
     """
     Delete a document from the database.
