@@ -1,65 +1,85 @@
 # RAG Server
 
-A Retrieval-Augmented Generation (RAG) server implementation using FastMCP, Supabase, and OpenAI.
+A Retrieval-Augmented Generation (RAG) server that uses Supabase for vector storage and OpenAI for embeddings.
 
-## Features
+## Prerequisites
 
-- Semantic document search using embeddings
-- Document management (add/delete)
-- Flexible environment variable configuration
-- SSE transport support
+- Python 3.8 or higher
+- Supabase account and project
+- OpenAI API key
+- PostgreSQL database with vector extension enabled
 
 ## Setup
 
-1. Clone the repository
-2. Create a `.env` file in the project root with the following variables:
-   ```
-   SUPABASE_URL=your_supabase_url
-   SUPABASE_ANON_KEY=your_supabase_anon_key
-   OPENAI_API_KEY=your_openai_api_key
-   OPENAI_MODEL=your_openai_model
-   DOCUMENTS_TABLE=your_documents_table
-   DEFAULT_SEARCH_LIMIT=5
-   ```
+1. Clone the repository:
+```bash
+git clone https://github.com/FredNov/rag-server.git
+cd rag-server
+```
 
-   Alternatively, you can set these as system environment variables.
+2. Create a virtual environment and activate it:
+```bash
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+```
 
 3. Install dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
+```bash
+pip install -r requirements.txt
+```
 
-## Usage
+4. Create a `.env` file with your credentials:
+```env
+SUPABASE_URL=your_supabase_url
+SUPABASE_KEY=your_supabase_key
+OPENAI_API_KEY=your_openai_api_key
+```
 
-Run the server:
+5. Set up the database:
+   - Go to your Supabase project dashboard
+   - Navigate to the SQL Editor
+   - Copy and paste the contents of `setup.sql`
+   - Run the SQL commands
+
+## Running the Server
+
+Start the RAG server:
 ```bash
 python rag_server.py
 ```
 
-The server will start with SSE transport enabled.
+The server will start on port 3000 by default.
 
 ## API Endpoints
 
-- `search_documents`: Search for documents using semantic similarity
-- `add_document`: Add a new document with embedding
-- `delete_document`: Delete a document by ID
+- `POST /messages/` - Send messages to the server
+- `GET /sse` - Server-Sent Events endpoint for real-time communication
 
-## Environment Variables
+## Available Tools
 
-The server looks for environment variables in the following order:
-1. `.env` file in the script directory
-2. System environment variables
+1. `search_note`: Search for notes using semantic similarity
+   - Parameters:
+     - `query`: The search query
+     - `limit`: Maximum number of results (default: 5)
 
-Required variables:
-- `SUPABASE_URL`: Your Supabase project URL
-- `SUPABASE_ANON_KEY`: Your Supabase anonymous key
-- `OPENAI_API_KEY`: Your OpenAI API key
-- `OPENAI_MODEL`: The OpenAI model to use for embeddings
-- `DOCUMENTS_TABLE`: The name of your documents table in Supabase
+2. `add_note`: Add a new note to the database
+   - Parameters:
+     - `content`: The note content
+     - `metadata`: Optional JSON metadata
 
-Optional variables:
-- `DEFAULT_SEARCH_LIMIT`: Maximum number of documents to return in search (default: 5)
+3. `delete_note`: Delete a note by ID
+   - Parameters:
+     - `note_id`: The ID of the note to delete
+
+## Database Schema
+
+The `notes` table has the following structure:
+- `id`: Serial primary key
+- `content`: Text content of the note
+- `embedding`: Vector(1536) for semantic search
+- `metadata`: JSONB field for additional data
+- `created_at`: Timestamp of creation
 
 ## License
 
-MIT 
+MIT License 
