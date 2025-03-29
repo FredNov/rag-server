@@ -8,8 +8,15 @@ from pydantic import BaseModel
 import logging
 from pathlib import Path
 
-# Set up logging
-logging.basicConfig(level=logging.INFO)
+# Configure logging with both file and console handlers
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('rag_server.log'),
+        logging.StreamHandler()
+    ]
+)
 logger = logging.getLogger(__name__)
 
 def find_env_file() -> Optional[Path]:
@@ -39,20 +46,22 @@ def find_env_file() -> Optional[Path]:
             logger.info(f"Found .env file at: {env_path}")
             return env_path
     
-    logger.info("No .env file found in any of the checked locations")
+    logger.warning("No .env file found in any of the checked locations")
     return None
 
 # Try to load .env file if it exists
 env_path = find_env_file()
 if env_path:
+    logger.info(f"Loading .env file from: {env_path}")
     load_dotenv(env_path)
 else:
-    logger.info("Using system environment variables")
+    logger.warning("No .env file found, using system environment variables")
 
 # Get environment variables with fallback to system environment
 def get_env_var(key: str, default: Optional[str] = None) -> str:
     value = os.getenv(key, default)
     if value is None:
+        logger.error(f"Required environment variable {key} not found in .env file or system environment")
         raise ValueError(f"Required environment variable {key} not found in .env file or system environment")
     return value
 
@@ -60,17 +69,30 @@ def get_env_var(key: str, default: Optional[str] = None) -> str:
 SUPABASE_URL = get_env_var("SUPABASE_URL")
 SUPABASE_ANON_KEY = get_env_var("SUPABASE_ANON_KEY")
 OPENAI_API_KEY = get_env_var("OPENAI_API_KEY")
-OPENAI_MODEL = get_env_var("OPENAI_MODEL", "text-embedding-ada-002")
+OPENAI_MODEL = get_env_var("OPENAI_MODEL", "text-embedding-3-small")
 DOCUMENTS_TABLE = get_env_var("DOCUMENTS_TABLE")
-DEFAULT_SEARCH_LIMIT = int(get_env_var("DEFAULT_SEARCH_LIMIT", "5"))
+DEFAULT_SEARCH_LIMIT = int(get_env_var("DEFAULT_SEARCH_LIMIT", "7"))
+PORT = int(get_env_var("PORT", "8000"))
+
+# Log startup configuration (with sensitive data masked)
+logger.info("Starting RAG Server with configuration:")
+logger.info(f"Supabase URL: {SUPABASE_URL}")
+logger.info(f"Supabase Key: {'*' * len(SUPABASE_ANON_KEY)}")
+logger.info(f"OpenAI Model: {OPENAI_MODEL}")
+logger.info(f"Documents Table: {DOCUMENTS_TABLE}")
+logger.info(f"Default Search Limit: {DEFAULT_SEARCH_LIMIT}")
+logger.info(f"Server Port: {PORT}")
 
 # Initialize Supabase client
+logger.info("Initializing Supabase client...")
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
 
 # Initialize OpenAI client
+logger.info("Initializing OpenAI client...")
 openai_client = OpenAI(api_key=OPENAI_API_KEY)
 
 # Create MCP server
+logger.info("Creating MCP server...")
 mcp = FastMCP("RAG Server")
 
 class Document(BaseModel):
@@ -109,49 +131,54 @@ async def search_documents(query: str, limit: int = DEFAULT_SEARCH_LIMIT) -> Lis
     Returns:
         List of relevant documents
     """
-    logger.info(f"Searching for query: {query}")
+    logger.info(f"Starting document search with query: '{query}' (limit: {limit})")
     
-    # Generate embedding for the query
-    query_embedding = openai_client.embeddings.create(
-        model=OPENAI_MODEL,
-        input=query
-    ).data[0].embedding
-    
-    logger.info(f"Generated query embedding of length: {len(query_embedding)}")
-    
-    # Query Supabase for similar documents
-    response = supabase.rpc(
-        'match_documents',
-        {
-            'query_embedding': query_embedding,
-            'match_count': limit,
-            'filter': {}
-        }
-    ).execute()
-    
-    # Process and sort results by similarity
-    results = []
-    for doc in response.data:
-        # Convert the distance-based similarity to a proper similarity score
-        # The database returns 1 - (cosine distance), where cosine distance is 0 to 2
-        # We want to convert this to a proper similarity score between -1 and 1
-        distance = 1 - doc.get('similarity', 0)  # Convert back to distance
-        similarity = 1 - (distance / 2)  # Convert distance to similarity
+    try:
+        # Generate embedding for the query
+        logger.debug("Generating query embedding...")
+        query_embedding = openai_client.embeddings.create(
+            model=OPENAI_MODEL,
+            input=query
+        ).data[0].embedding
         
-        # Create a new document with the corrected similarity
-        doc_copy = doc.copy()
-        doc_copy['similarity'] = similarity
-        results.append(doc_copy)
-    
-    # Sort by similarity in descending order
-    results.sort(key=lambda x: x['similarity'], reverse=True)
-    
-    # Log the results
-    for doc in results:
-        logger.info(f"Found document: ID={doc['id']}, Similarity={doc['similarity']:.3f}")
-        logger.info(f"Content preview: {doc['content'][:100]}...")
-    
-    return [Document.from_supabase(doc) for doc in results]
+        logger.info(f"Generated query embedding of length: {len(query_embedding)}")
+        
+        # Query Supabase for similar documents
+        logger.debug("Querying Supabase for similar documents...")
+        response = supabase.rpc(
+            'match_documents',
+            {
+                'query_embedding': query_embedding,
+                'match_count': limit,
+                'filter': {}
+            }
+        ).execute()
+        
+        # Process and sort results by similarity
+        results = []
+        for doc in response.data:
+            # Convert the distance-based similarity to a proper similarity score
+            distance = 1 - doc.get('similarity', 0)
+            similarity = 1 - (distance / 2)
+            
+            # Create a new document with the corrected similarity
+            doc_copy = doc.copy()
+            doc_copy['similarity'] = similarity
+            results.append(doc_copy)
+        
+        # Sort by similarity in descending order
+        results.sort(key=lambda x: x['similarity'], reverse=True)
+        
+        # Log the results
+        logger.info(f"Found {len(results)} matching documents")
+        for doc in results:
+            logger.debug(f"Document ID={doc['id']}, Similarity={doc['similarity']:.3f}")
+            logger.debug(f"Content preview: {doc['content'][:100]}...")
+        
+        return [Document.from_supabase(doc) for doc in results]
+    except Exception as e:
+        logger.error(f"Error during document search: {str(e)}")
+        raise
 
 @mcp.tool()
 async def add_document(content: str, metadata: Optional[DocumentMetadata] = None) -> Document:
@@ -160,39 +187,42 @@ async def add_document(content: str, metadata: Optional[DocumentMetadata] = None
     
     Args:
         content: The document content
-        metadata: Optional metadata for the document with structure:
-            {
-                "loc": {
-                    "lines": {
-                        "to": int,
-                        "from": int
-                    }
-                },
-                "source": str,
-                "file_id": str,
-                "blobType": str
-            }
+        metadata: Optional metadata for the document
         
     Returns:
         The created document
     """
-    # Generate embedding for the document
-    embedding = openai_client.embeddings.create(
-        model=OPENAI_MODEL,
-        input=content
-    ).data[0].embedding
+    logger.info("Starting document addition process")
+    logger.debug(f"Content length: {len(content)} characters")
+    if metadata:
+        logger.debug(f"Metadata: {metadata.dict()}")
     
-    # Convert metadata to dict if provided
-    metadata_dict = metadata.dict() if metadata else None
-    
-    # Insert document into Supabase
-    response = supabase.table(DOCUMENTS_TABLE).insert({
-        'content': content,
-        'embedding': embedding,
-        'metadata': metadata_dict
-    }).execute()
-    
-    return Document.from_supabase(response.data[0])
+    try:
+        # Generate embedding for the document
+        logger.debug("Generating document embedding...")
+        embedding = openai_client.embeddings.create(
+            model=OPENAI_MODEL,
+            input=content
+        ).data[0].embedding
+        
+        logger.info(f"Generated document embedding of length: {len(embedding)}")
+        
+        # Convert metadata to dict if provided
+        metadata_dict = metadata.dict() if metadata else None
+        
+        # Insert document into Supabase
+        logger.debug("Inserting document into Supabase...")
+        response = supabase.table(DOCUMENTS_TABLE).insert({
+            'content': content,
+            'embedding': embedding,
+            'metadata': metadata_dict
+        }).execute()
+        
+        logger.info(f"Successfully added document with ID: {response.data[0]['id']}")
+        return Document.from_supabase(response.data[0])
+    except Exception as e:
+        logger.error(f"Error adding document: {str(e)}")
+        raise
 
 @mcp.tool()
 async def delete_document(document_id: Union[str, int]) -> bool:
@@ -200,17 +230,31 @@ async def delete_document(document_id: Union[str, int]) -> bool:
     Delete a document from the database.
     
     Args:
-        document_id: The ID of the document to delete (can be string or integer)
+        document_id: The ID of the document to delete
         
     Returns:
         True if deletion was successful
     """
-    # Convert document_id to string if it's an integer
-    document_id_str = str(document_id)
-    response = supabase.table(DOCUMENTS_TABLE).delete().eq('id', document_id_str).execute()
-    return len(response.data) > 0
+    logger.info(f"Attempting to delete document with ID: {document_id}")
+    
+    try:
+        # Convert document_id to string if it's an integer
+        document_id_str = str(document_id)
+        response = supabase.table(DOCUMENTS_TABLE).delete().eq('id', document_id_str).execute()
+        
+        success = len(response.data) > 0
+        if success:
+            logger.info(f"Successfully deleted document with ID: {document_id}")
+        else:
+            logger.warning(f"No document found with ID: {document_id}")
+        
+        return success
+    except Exception as e:
+        logger.error(f"Error deleting document {document_id}: {str(e)}")
+        raise
 
 if __name__ == "__main__":
     import uvicorn
+    logger.info(f"Starting RAG Server on port {PORT}")
     # Run with SSE transport
-    mcp.run(transport='sse') 
+    mcp.run(transport='sse', port=PORT) 
