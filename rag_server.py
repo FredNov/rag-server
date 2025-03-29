@@ -1,6 +1,6 @@
 import os
 from typing import List, Optional, Union
-from dotenv import load_dotenv
+from dotenv import load_dotenv, find_dotenv
 from mcp.server.fastmcp import FastMCP
 from supabase import create_client, Client
 from openai import OpenAI
@@ -19,43 +19,25 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-def find_env_file() -> Optional[Path]:
+def load_env_file() -> None:
     """
-    Find the .env file by checking multiple locations:
-    1. Current working directory
-    2. Script directory
-    3. Parent directory of script
+    Load environment variables from .env file.
+    Raises an error if .env file is not found or cannot be loaded.
     """
-    # Get the script's directory
-    script_dir = Path(__file__).resolve().parent
-    current_dir = Path.cwd()
+    env_path = find_dotenv(usecwd=True)
+    if not env_path:
+        error_msg = "No .env file found. Please create a .env file with required configuration."
+        logger.error(error_msg)
+        raise FileNotFoundError(error_msg)
     
-    # List of possible .env file locations
-    possible_locations = [
-        current_dir / '.env',
-        script_dir / '.env',
-        script_dir.parent / '.env'
-    ]
-    
-    # Log all locations we're checking
-    logger.info(f"Checking for .env file in locations: {[str(p) for p in possible_locations]}")
-    
-    # Find the first existing .env file
-    for env_path in possible_locations:
-        if env_path.exists():
-            logger.info(f"Found .env file at: {env_path}")
-            return env_path
-    
-    logger.error("No .env file found in any of the checked locations")
-    raise FileNotFoundError("No .env file found. Please create a .env file with required configuration.")
-
-# Find and load .env file
-env_path = find_env_file()
-if env_path:
     logger.info(f"Loading .env file from: {env_path}")
-    load_dotenv(env_path, override=True)  # override=True ensures we don't use system env vars
-else:
-    raise FileNotFoundError("No .env file found. Please create a .env file with required configuration.")
+    if not load_dotenv(env_path, override=True):
+        error_msg = "Failed to load .env file"
+        logger.error(error_msg)
+        raise RuntimeError(error_msg)
+
+# Load environment variables from .env file
+load_env_file()
 
 def get_env_var(key: str, default: Optional[str] = None) -> str:
     """
