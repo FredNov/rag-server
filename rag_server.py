@@ -135,14 +135,14 @@ class DocumentMetadata(BaseModel):
 @mcp.tool("search_documents")
 async def search_documents(query: str, limit: int = DEFAULT_SEARCH_LIMIT) -> List[Document]:
     """
-    Search for documents using semantic similarity with the given query.
+    Search for user knowledge database (notes) using semantic similarity with the given query.
     
     Args:
         query (str): The search query text
-        limit (int): Maximum number of documents to return (defaults to DEFAULT_SEARCH_LIMIT from environment)
+        limit (int): Maximum number of notes to return (defaults to DEFAULT_SEARCH_LIMIT from environment)
         
     Returns:
-        List of relevant documents
+        List of relevant notes
     """
     logger.info(f"Starting document search with query: '{query}' (limit: {limit})")
     
@@ -193,17 +193,17 @@ async def search_documents(query: str, limit: int = DEFAULT_SEARCH_LIMIT) -> Lis
         logger.error(f"Error during document search: {str(e)}")
         raise
 
-@mcp.tool("add_document")
-async def add_document(content: str, metadata: Optional[DocumentMetadata] = None) -> Document:
+@mcp.tool("add_note")
+async def add_note(content: str, metadata: Optional[DocumentMetadata] = None) -> Document:
     """
-    Add a new document to the database with its embedding.
+    Add a new note to user knowledge database.
     
     Args:
-        content (str): The content text to add
-        metadata (Optional[DocumentMetadata]): Optional metadata including location, source, file_id, and blobType
+        content (str): The note content to add
+        metadata (Optional[DocumentMetadata]): Optional metadata for the note including location, source, file_id, and blobType
         
     Returns:
-        The created document
+        The created note with its generated embedding
     """
     logger.info("Starting document addition process")
     logger.debug(f"Content length: {len(content)} characters")
@@ -237,33 +237,33 @@ async def add_document(content: str, metadata: Optional[DocumentMetadata] = None
         logger.error(f"Error adding document: {str(e)}")
         raise
 
-@mcp.tool("delete_document")
-async def delete_document(document_id: Union[str, int]) -> bool:
+@mcp.tool("delete_note")
+async def delete_note(note_id: Union[str, int]) -> bool:
     """
-    Delete a document from the database.
+    Delete a note from user knowledge database.
     
     Args:
-        document_id (Union[str, int]): The ID of the content to delete
+        note_id (Union[str, int]): The ID of the note to delete
         
     Returns:
-        True if deletion was successful
+        True if the note was successfully deleted
     """
-    logger.info(f"Attempting to delete document with ID: {document_id}")
+    logger.info(f"Attempting to delete note with ID: {note_id}")
     
     try:
-        # Convert document_id to string if it's an integer
-        document_id_str = str(document_id)
-        response = supabase.table(DOCUMENTS_TABLE).delete().eq('id', document_id_str).execute()
+        # Convert note_id to string if it's an integer
+        note_id_str = str(note_id)
+        response = supabase.table(DOCUMENTS_TABLE).delete().eq('id', note_id_str).execute()
         
         success = len(response.data) > 0
         if success:
-            logger.info(f"Successfully deleted document with ID: {document_id}")
+            logger.info(f"Successfully deleted note with ID: {note_id}")
         else:
-            logger.warning(f"No document found with ID: {document_id}")
+            logger.warning(f"No note found with ID: {note_id}")
         
         return success
     except Exception as e:
-        logger.error(f"Error deleting document {document_id}: {str(e)}")
+        logger.error(f"Error deleting note {note_id}: {str(e)}")
         raise
 
 if __name__ == "__main__":
