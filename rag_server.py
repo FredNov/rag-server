@@ -123,7 +123,14 @@ class DocumentMetadata(BaseModel):
     file_id: Optional[str] = None
     blobType: Optional[str] = None
 
-@mcp.tool()
+@mcp.tool(
+    name="search_documents",
+    description="Search for documents using semantic similarity with the given query. Returns a list of relevant documents sorted by similarity.",
+    parameters={
+        "query": "The search query text",
+        "limit": "Maximum number of documents to return (defaults to DEFAULT_SEARCH_LIMIT from environment)"
+    }
+)
 async def search_documents(query: str, limit: int = DEFAULT_SEARCH_LIMIT) -> List[Document]:
     """
     Search for documents using semantic similarity with the given query.
@@ -184,7 +191,14 @@ async def search_documents(query: str, limit: int = DEFAULT_SEARCH_LIMIT) -> Lis
         logger.error(f"Error during document search: {str(e)}")
         raise
 
-@mcp.tool()
+@mcp.tool(
+    name="add_document",
+    description="Add a new document to the database with its embedding. The document will be processed to generate embeddings and stored in Supabase.",
+    parameters={
+        "content": "The document content text",
+        "metadata": "Optional metadata for the document including location, source, file_id, and blobType"
+    }
+)
 async def add_document(content: str, metadata: Optional[DocumentMetadata] = None) -> Document:
     """
     Add a new document to the database with its embedding.
@@ -228,7 +242,13 @@ async def add_document(content: str, metadata: Optional[DocumentMetadata] = None
         logger.error(f"Error adding document: {str(e)}")
         raise
 
-@mcp.tool()
+@mcp.tool(
+    name="delete_document",
+    description="Delete a document from the database by its ID. Returns True if deletion was successful.",
+    parameters={
+        "document_id": "The ID of the document to delete (can be string or integer)"
+    }
+)
 async def delete_document(document_id: Union[str, int]) -> bool:
     """
     Delete a document from the database.
