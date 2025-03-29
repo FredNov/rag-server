@@ -1,5 +1,5 @@
 import os
-from typing import List, Optional, Union
+from typing import List, Optional, Union, Dict
 from dotenv import load_dotenv, find_dotenv
 from mcp.server.fastmcp import FastMCP
 from supabase import create_client, Client
@@ -8,6 +8,9 @@ from pydantic import BaseModel
 import logging
 from pathlib import Path
 import httpx
+import uuid
+import hashlib
+from datetime import datetime
 
 # Configure logging with both file and console handlers
 logging.basicConfig(
@@ -194,47 +197,57 @@ async def search_documents(query: str, limit: int = DEFAULT_SEARCH_LIMIT) -> Lis
         raise
 
 @mcp.tool("add_note")
-async def add_note(content: str, metadata: Optional[DocumentMetadata] = None) -> Document:
-    """
-    Add a new note to user knowledge database.
-    
-    Args:
-        content (str): The note content to add
-        metadata (Optional[DocumentMetadata]): Optional metadata for the note including location, source, file_id, and blobType
-        
-    Returns:
-        The created note with its generated embedding
-    """
-    logger.info("Starting document addition process")
-    logger.debug(f"Content length: {len(content)} characters")
-    if metadata:
-        logger.debug(f"Metadata: {metadata.dict()}")
-    
+async def add_note(content: str, metadata: Optional[Dict] = None) -> Dict:
+    """Add a new note to the user knowledge database."""
     try:
-        # Generate embedding for the document
-        logger.debug("Generating document embedding...")
-        embedding = openai_client.embeddings.create(
-            model=OPENAI_MODEL,
+        # Generate embedding for the content
+        response = await openai_client.embeddings.create(
+            model="text-embedding-3-small",
             input=content
-        ).data[0].embedding
-        
-        logger.info(f"Generated document embedding of length: {len(embedding)}")
-        
-        # Convert metadata to dict if provided
-        metadata_dict = metadata.dict() if metadata else None
-        
-        # Insert document into Supabase
-        logger.debug("Inserting document into Supabase...")
-        response = supabase.table(DOCUMENTS_TABLE).insert({
-            'content': content,
-            'embedding': embedding,
-            'metadata': metadata_dict
+        )
+        embedding = response.data[0].embedding
+
+        # Prepare metadata with default values and chat source
+        default_metadata = {
+            "loc": None,
+            "source": "from_chat",
+            "file_id": str(uuid.uuid4()),  # Generate unique ID for chat messages
+            "blobType": "text",
+            "filename": None,
+            "path": None,
+            "directory": None,
+            "file_extension": None,
+            "file_size": len(content),
+            "file_hash": hashlib.sha256(content.encode()).hexdigest(),
+            "content_length": len(content),
+            "is_truncated": False,
+            "last_modified": datetime.now().isoformat(),
+            "created_at": datetime.now().isoformat(),
+            "processing_info": {
+                "model": "text-embedding-3-small",
+                "processed_at": datetime.now().isoformat(),
+                "embedding_dimension": 1536
+            }
+        }
+
+        # Merge with provided metadata if any
+        if metadata:
+            default_metadata.update(metadata)
+
+        # Insert into Supabase
+        result = supabase.table("notes").insert({
+            "content": content,
+            "embedding": embedding,
+            "metadata": default_metadata
         }).execute()
-        
-        logger.info(f"Successfully added document with ID: {response.data[0]['id']}")
-        return Document.from_supabase(response.data[0])
+
+        if result.data:
+            return {"id": result.data[0]["id"], "content": content, "metadata": default_metadata}
+        else:
+            raise Exception("Failed to add note: No data returned from insert")
+
     except Exception as e:
-        logger.error(f"Error adding document: {str(e)}")
+        logging.error(f"Error adding note: {str(e)}")
         raise
 
 @mcp.tool("delete_note")
