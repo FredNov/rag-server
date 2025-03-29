@@ -260,5 +260,5 @@ async def delete_document(document_id: Union[str, int]) -> bool:
 if __name__ == "__main__":
     import uvicorn
     logger.info(f"Starting RAG Server on port {PORT}")
-    # Run with SSE transport
-    mcp.run(transport='sse', host='0.0.0.0', port=PORT) 
+    # Run with SSE transport using uvicorn directly
+    uvicorn.run(mcp.app, host='0.0.0.0', port=PORT) 
