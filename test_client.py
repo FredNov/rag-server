@@ -29,12 +29,34 @@ async def test_connection():
             tools = await session.list_tools()
             print("Available tools:", tools)
             
-            # Try to add a test document
-            result = await session.call_tool("add_document", {
-                "content": "This is a test document",
-                "metadata": {"source": "test"}
+            # First delete any existing test documents
+            print("\nDeleting existing test documents...")
+            try:
+                result = await session.call_tool("delete_note", {
+                    "note_id": 638  # ID from previous run
+                })
+                print("Delete result:", result)
+            except Exception as e:
+                print("No existing document to delete")
+            
+            # Add a test document
+            print("\nAdding test document...")
+            add_result = await session.call_tool("add_note", {
+                "content": "I need to visit the dentist next week for a checkup. The appointment is scheduled for Monday at 2 PM.",
+                "metadata": {
+                    "source": "test",
+                    "file_id": "test1"
+                }
             })
-            print("Add document result:", result)
+            print("Add document result:", add_result)
+            
+            # Search for notes about dentist
+            print("\nSearching for notes about dentist...")
+            result = await session.call_tool("search_note", {
+                "query": "dentist",
+                "limit": 5  # Optional: limit the number of results
+            })
+            print("\nSearch results for 'dentist':", result)
 
 if __name__ == "__main__":
     asyncio.run(test_connection()) 
