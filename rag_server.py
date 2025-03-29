@@ -259,11 +259,33 @@ async def delete_document(document_id: Union[str, int]) -> bool:
 
 if __name__ == "__main__":
     import uvicorn
+    from mcp.server.sse import SseServerTransport
+    from starlette.applications import Starlette
+    from starlette.routing import Mount, Route
+    
     logger.info(f"Starting RAG Server on port {PORT}")
-    # Configure server with port
-    mcp.server_config = {
-        "command": "uvicorn",
-        "args": ["--host", "0.0.0.0", "--port", str(PORT)]
-    }
-    # Run with SSE transport
-    mcp.run(transport='sse') 
+    
+    # Create SSE transport
+    sse = SseServerTransport("/messages/")
+    
+    async def handle_sse(request):
+        async with sse.connect_sse(
+            request.scope, request.receive, request._send
+        ) as streams:
+            await mcp._mcp_server.run(
+                streams[0],
+                streams[1],
+                mcp._mcp_server.create_initialization_options()
+            )
+    
+    # Create Starlette app with routes
+    starlette_app = Starlette(
+        debug=True,
+        routes=[
+            Route("/sse", endpoint=handle_sse),
+            Mount("/messages/", app=sse.handle_post_message),
+        ],
+    )
+    
+    # Run the server
+    uvicorn.run(starlette_app, host="0.0.0.0", port=PORT) 
