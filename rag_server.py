@@ -125,15 +125,15 @@ class DocumentMetadata(BaseModel):
 
 @mcp.tool(
     name="search_documents",
-    description="Search for documents using semantic similarity with the given query. Returns a list of relevant documents sorted by similarity."
+    description="Search in user knowledge database using semantic similarity with the given query. Returns a list of relevant content sorted by similarity."
 )
 async def search_documents(query: str, limit: int = DEFAULT_SEARCH_LIMIT) -> List[Document]:
     """
     Search for documents using semantic similarity with the given query.
     
     Args:
-        query: The search query text
-        limit: Maximum number of documents to return (defaults to DEFAULT_SEARCH_LIMIT from environment)
+        query (str): The search query text
+        limit (int): Maximum number of documents to return (defaults to DEFAULT_SEARCH_LIMIT from environment)
         
     Returns:
         List of relevant documents
@@ -189,15 +189,15 @@ async def search_documents(query: str, limit: int = DEFAULT_SEARCH_LIMIT) -> Lis
 
 @mcp.tool(
     name="add_document",
-    description="Add a new document to the database with its embedding. The document will be processed to generate embeddings and stored in Supabase."
+    description="Add a new user knowledge to the database with its embedding. The content will be processed to generate embeddings and stored in Supabase."
 )
 async def add_document(content: str, metadata: Optional[DocumentMetadata] = None) -> Document:
     """
     Add a new document to the database with its embedding.
     
     Args:
-        content: The document content text
-        metadata: Optional metadata for the document including location, source, file_id, and blobType
+        content (str): The content text to add
+        metadata (Optional[DocumentMetadata]): Optional metadata including location, source, file_id, and blobType
         
     Returns:
         The created document
@@ -236,14 +236,14 @@ async def add_document(content: str, metadata: Optional[DocumentMetadata] = None
 
 @mcp.tool(
     name="delete_document",
-    description="Delete a document from the database by its ID. Returns True if deletion was successful."
+    description="Delete an user knowledge from the database by its ID. Returns True if deletion was successful."
 )
 async def delete_document(document_id: Union[str, int]) -> bool:
     """
     Delete a document from the database.
     
     Args:
-        document_id: The ID of the document to delete (can be string or integer)
+        document_id (Union[str, int]): The ID of the content to delete
         
     Returns:
         True if deletion was successful
