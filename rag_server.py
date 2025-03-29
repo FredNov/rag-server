@@ -132,7 +132,7 @@ class DocumentMetadata(BaseModel):
     file_id: Optional[str] = None
     blobType: Optional[str] = None
 
-@mcp.tool("search_documents")
+@mcp.tool("search_note")
 async def search_documents(query: str, limit: int = DEFAULT_SEARCH_LIMIT) -> List[Document]:
     """
     Search for user knowledge database (notes) using semantic similarity with the given query.
