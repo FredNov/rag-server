@@ -46,33 +46,55 @@ def find_env_file() -> Optional[Path]:
             logger.info(f"Found .env file at: {env_path}")
             return env_path
     
-    logger.warning("No .env file found in any of the checked locations")
-    return None
+    logger.error("No .env file found in any of the checked locations")
+    raise FileNotFoundError("No .env file found. Please create a .env file with required configuration.")
 
-# Try to load .env file if it exists
+# Find and load .env file
 env_path = find_env_file()
 if env_path:
     logger.info(f"Loading .env file from: {env_path}")
-    load_dotenv(env_path)
+    load_dotenv(env_path, override=True)  # override=True ensures we don't use system env vars
 else:
-    logger.warning("No .env file found, using system environment variables")
+    raise FileNotFoundError("No .env file found. Please create a .env file with required configuration.")
 
-# Get environment variables with fallback to system environment
 def get_env_var(key: str, default: Optional[str] = None) -> str:
-    value = os.getenv(key, default)
+    """
+    Get an environment variable from .env file.
+    If the variable is required (no default) and not found, raises an error.
+    
+    Args:
+        key: The environment variable name
+        default: Optional default value if the variable is not found
+        
+    Returns:
+        The environment variable value
+        
+    Raises:
+        ValueError: If the variable is required and not found
+    """
+    value = os.getenv(key)
     if value is None:
-        logger.error(f"Required environment variable {key} not found in .env file or system environment")
-        raise ValueError(f"Required environment variable {key} not found in .env file or system environment")
+        if default is not None:
+            logger.warning(f"Environment variable {key} not found in .env file, using default value")
+            return default
+        else:
+            error_msg = f"Required environment variable {key} not found in .env file"
+            logger.error(error_msg)
+            raise ValueError(error_msg)
     return value
 
 # Script configuration variables from environment
-SUPABASE_URL = get_env_var("SUPABASE_URL")
-SUPABASE_ANON_KEY = get_env_var("SUPABASE_ANON_KEY")
-OPENAI_API_KEY = get_env_var("OPENAI_API_KEY")
-OPENAI_MODEL = get_env_var("OPENAI_MODEL", "text-embedding-3-small")
-DOCUMENTS_TABLE = get_env_var("DOCUMENTS_TABLE")
-DEFAULT_SEARCH_LIMIT = int(get_env_var("DEFAULT_SEARCH_LIMIT", "7"))
-PORT = int(get_env_var("PORT", "8000"))
+try:
+    SUPABASE_URL = get_env_var("SUPABASE_URL")
+    SUPABASE_ANON_KEY = get_env_var("SUPABASE_ANON_KEY")
+    OPENAI_API_KEY = get_env_var("OPENAI_API_KEY")
+    OPENAI_MODEL = get_env_var("OPENAI_MODEL", "text-embedding-3-small")
+    DOCUMENTS_TABLE = get_env_var("DOCUMENTS_TABLE")
+    DEFAULT_SEARCH_LIMIT = int(get_env_var("DEFAULT_SEARCH_LIMIT", "7"))
+    PORT = int(get_env_var("PORT", "8000"))
+except ValueError as e:
+    logger.error("Failed to load required environment variables")
+    raise
 
 # Log startup configuration (with sensitive data masked)
 logger.info("Starting RAG Server with configuration:")
