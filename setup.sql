@@ -1,5 +1,6 @@
--- Enable the vector extension
+-- Enable required extensions
 CREATE EXTENSION IF NOT EXISTS vector;
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
 
 -- Drop existing objects if they exist
 DROP FUNCTION IF EXISTS match_documents(vector, integer, jsonb);
