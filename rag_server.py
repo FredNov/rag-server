@@ -261,4 +261,4 @@ if __name__ == "__main__":
     import uvicorn
     logger.info(f"Starting RAG Server on port {PORT}")
     # Run with SSE transport
-    mcp.run(transport='sse', port=PORT) 
+    mcp.run(transport='sse', host='0.0.0.0', port=PORT) 
