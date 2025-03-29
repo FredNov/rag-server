@@ -1,8 +1,10 @@
 -- Enable the vector extension
 CREATE EXTENSION IF NOT EXISTS vector;
 
--- Drop existing tables and functions if they exist
+-- Drop existing objects if they exist
 DROP FUNCTION IF EXISTS match_documents(vector, integer, jsonb);
+DROP FUNCTION IF EXISTS validate_note_metadata();
+DROP TRIGGER IF EXISTS validate_note_metadata_trigger ON notes;
 DROP TABLE IF EXISTS notes CASCADE;
 
 -- Create the notes table with proper column types
@@ -40,6 +42,7 @@ CREATE INDEX idx_notes_source ON notes USING gin ((metadata->>'source'));
 CREATE INDEX idx_notes_blob_type ON notes USING gin ((metadata->>'blobType'));
 CREATE INDEX idx_notes_directory ON notes USING gin ((metadata->>'directory'));
 CREATE INDEX idx_notes_created_at ON notes USING gin ((metadata->>'created_at'));
+CREATE INDEX idx_notes_processing_info ON notes USING gin ((metadata->'processing_info'));
 
 -- Create an index for faster similarity searches
 CREATE INDEX ON notes USING hnsw (embedding vector_cosine_ops);
@@ -76,7 +79,7 @@ BEGIN
 END;
 $$;
 
--- Add a function to validate metadata structure
+-- Create function to validate metadata structure
 CREATE OR REPLACE FUNCTION validate_note_metadata()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -106,6 +109,39 @@ BEGIN
         RAISE EXCEPTION 'embedding_dimension field is required in processing_info';
     END IF;
     
+    -- Validate numeric fields if present
+    IF NEW.metadata->>'file_size' IS NOT NULL AND 
+       (NEW.metadata->>'file_size')::integer IS NULL THEN
+        RAISE EXCEPTION 'file_size must be a valid integer';
+    END IF;
+    
+    IF NEW.metadata->>'content_length' IS NOT NULL AND 
+       (NEW.metadata->>'content_length')::integer IS NULL THEN
+        RAISE EXCEPTION 'content_length must be a valid integer';
+    END IF;
+    
+    -- Validate boolean fields if present
+    IF NEW.metadata->>'is_truncated' IS NOT NULL AND 
+       (NEW.metadata->>'is_truncated')::boolean IS NULL THEN
+        RAISE EXCEPTION 'is_truncated must be a valid boolean';
+    END IF;
+    
+    -- Validate timestamps if present
+    IF NEW.metadata->>'last_modified' IS NOT NULL AND 
+       (NEW.metadata->>'last_modified')::timestamp IS NULL THEN
+        RAISE EXCEPTION 'last_modified must be a valid timestamp';
+    END IF;
+    
+    IF NEW.metadata->>'created_at' IS NOT NULL AND 
+       (NEW.metadata->>'created_at')::timestamp IS NULL THEN
+        RAISE EXCEPTION 'created_at must be a valid timestamp';
+    END IF;
+    
+    IF NEW.metadata->'processing_info'->>'processed_at' IS NOT NULL AND 
+       (NEW.metadata->'processing_info'->>'processed_at')::timestamp IS NULL THEN
+        RAISE EXCEPTION 'processed_at must be a valid timestamp';
+    END IF;
+    
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
@@ -114,4 +150,32 @@ $$ LANGUAGE plpgsql;
 CREATE TRIGGER validate_note_metadata_trigger
     BEFORE INSERT OR UPDATE ON notes
     FOR EACH ROW
-    EXECUTE FUNCTION validate_note_metadata(); 
+    EXECUTE FUNCTION validate_note_metadata();
+
+-- Create RLS policies
+ALTER TABLE notes ENABLE ROW LEVEL SECURITY;
+
+-- Allow all authenticated users to read notes
+CREATE POLICY "Allow authenticated users to read notes"
+    ON notes FOR SELECT
+    TO authenticated
+    USING (true);
+
+-- Allow all authenticated users to insert notes
+CREATE POLICY "Allow authenticated users to insert notes"
+    ON notes FOR INSERT
+    TO authenticated
+    WITH CHECK (true);
+
+-- Allow all authenticated users to delete their own notes
+CREATE POLICY "Allow authenticated users to delete their own notes"
+    ON notes FOR DELETE
+    TO authenticated
+    USING (true);
+
+-- Allow all authenticated users to update their own notes
+CREATE POLICY "Allow authenticated users to update their own notes"
+    ON notes FOR UPDATE
+    TO authenticated
+    USING (true)
+    WITH CHECK (true); 
