@@ -37,11 +37,11 @@ CREATE TABLE notes (
 );
 
 -- Create indexes for commonly queried metadata fields
-CREATE INDEX idx_notes_file_id ON notes USING gin ((metadata->>'file_id'));
-CREATE INDEX idx_notes_source ON notes USING gin ((metadata->>'source'));
-CREATE INDEX idx_notes_blob_type ON notes USING gin ((metadata->>'blobType'));
-CREATE INDEX idx_notes_directory ON notes USING gin ((metadata->>'directory'));
-CREATE INDEX idx_notes_created_at ON notes USING gin ((metadata->>'created_at'));
+CREATE INDEX idx_notes_file_id ON notes USING gin ((metadata->>'file_id') gin_trgm_ops);
+CREATE INDEX idx_notes_source ON notes USING gin ((metadata->>'source') gin_trgm_ops);
+CREATE INDEX idx_notes_blob_type ON notes USING gin ((metadata->>'blobType') gin_trgm_ops);
+CREATE INDEX idx_notes_directory ON notes USING gin ((metadata->>'directory') gin_trgm_ops);
+CREATE INDEX idx_notes_created_at ON notes USING gin ((metadata->>'created_at') gin_trgm_ops);
 CREATE INDEX idx_notes_processing_info ON notes USING gin ((metadata->'processing_info'));
 
 -- Create an index for faster similarity searches
